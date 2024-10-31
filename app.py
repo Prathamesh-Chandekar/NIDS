@@ -1,165 +1,189 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, IsolationForest
-from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import joblib
 
-# Page config
+# Configure page
 st.set_page_config(
-    page_title="ML Security Dashboard",
-    page_icon="🛡️",
-    layout="wide"
+    page_title="Network Security ML Dashboard",
+    layout="wide",
+    page_icon="🔒"
 )
 
-class MLSecurityApp:
-    def __init__(self):
-        self.anomaly_detector = IsolationForest(contamination=0.1, random_state=42)
-        self.traffic_classifier = RandomForestClassifier(n_estimators=100)
-        self.scaler = StandardScaler()
-        
-    def generate_sample_data(self):
-        """Generate sample network traffic data for demonstration"""
-        n_samples = 1000
-        timestamps = [datetime.now() - timedelta(minutes=i) for i in range(n_samples)]
-        
-        data = {
-            'timestamp': timestamps,
-            'bytes_sent': np.random.randint(100, 10000, n_samples),
-            'bytes_received': np.random.randint(100, 10000, n_samples),
-            'packets': np.random.randint(1, 100, n_samples),
-            'protocol': np.random.choice(['TCP', 'UDP', 'ICMP'], n_samples),
-            'port': np.random.randint(1, 65535, n_samples),
-            'duration_ms': np.random.randint(1, 1000, n_samples)
-        }
-        return pd.DataFrame(data)
+# Apply custom CSS
+st.markdown("""
+    <style>
+    .stMetric div {
+        background-color: #f0f2f6;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+@st.cache_data
+def generate_sample_data(n_samples=1000):
+    """Generate sample network traffic data"""
+    np.random.seed(42)  # For reproducible results
+    timestamps = [datetime.now() - timedelta(minutes=i) for i in range(n_samples)]
+    
+    data = {
+        'timestamp': timestamps,
+        'bytes_sent': np.random.randint(100, 10000, n_samples),
+        'bytes_received': np.random.randint(100, 10000, n_samples),
+        'packets': np.random.randint(1, 100, n_samples),
+        'protocol': np.random.choice(['TCP', 'UDP', 'ICMP'], n_samples),
+        'port': np.random.randint(1, 65535, n_samples)
+    }
+    return pd.DataFrame(data)
+
+def detect_anomalies(data):
+    """Perform anomaly detection on network traffic"""
+    features = data[['bytes_sent', 'bytes_received', 'packets']]
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(features)
+    
+    detector = IsolationForest(contamination=0.1, random_state=42)
+    anomalies = detector.fit_predict(scaled_features)
+    return anomalies
 
 def main():
-    st.title("🛡️ ML-Based Network Security Dashboard")
-    
-    # Initialize the ML security system
-    security_app = MLSecurityApp()
+    st.title("🔒 Network Security ML Dashboard")
     
     # Sidebar
-    st.sidebar.header("Controls")
-    analysis_type = st.sidebar.selectbox(
+    st.sidebar.title("Controls")
+    analysis_type = st.sidebar.radio(
         "Select Analysis Type",
-        ["Real-time Monitoring", "Anomaly Detection", "Traffic Classification"]
+        ["Traffic Overview", "Anomaly Detection", "Security Metrics"]
     )
     
-    # Generate sample data
-    data = security_app.generate_sample_data()
+    # Generate data
+    data = generate_sample_data()
     
-    if analysis_type == "Real-time Monitoring":
-        col1, col2 = st.columns(2)
+    if analysis_type == "Traffic Overview":
+        st.header("Network Traffic Analysis")
         
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader("Network Traffic Overview")
-            # Traffic volume chart
-            fig_traffic = px.line(
-                data,
-                x='timestamp',
-                y=['bytes_sent', 'bytes_received'],
-                title='Network Traffic Volume'
-            )
-            st.plotly_chart(fig_traffic, use_container_width=True)
-            
+            st.metric("Total Traffic", 
+                     f"{data['bytes_sent'].sum() / 1e6:.2f} MB",
+                     "Active")
         with col2:
+            st.metric("Packets Processed", 
+                     f"{data['packets'].sum():,}",
+                     "Normal")
+        with col3:
+            st.metric("Active Protocols",
+                     len(data['protocol'].unique()),
+                     "Stable")
+        
+        # Traffic Volume Chart
+        st.subheader("Network Traffic Volume")
+        fig_traffic = px.line(
+            data,
+            x='timestamp',
+            y=['bytes_sent', 'bytes_received'],
+            title='Network Traffic Over Time'
+        )
+        st.plotly_chart(fig_traffic, use_container_width=True)
+        
+        # Protocol Distribution
+        col1, col2 = st.columns(2)
+        with col1:
             st.subheader("Protocol Distribution")
             protocol_dist = data['protocol'].value_counts()
             fig_protocol = px.pie(
                 values=protocol_dist.values,
-                names=protocol_dist.index,
-                title='Protocol Distribution'
+                names=protocol_dist.index
             )
-            st.plotly_chart(fig_protocol, use_container_width=True)
+            st.plotly_chart(fig_protocol)
             
-        # Recent Activity Table
-        st.subheader("Recent Network Activity")
-        st.dataframe(data.head(10), hide_index=True)
-        
+        with col2:
+            st.subheader("Port Usage")
+            port_ranges = pd.cut(data['port'], 
+                               bins=[0, 1024, 49151, 65535],
+                               labels=['Well-Known', 'Registered', 'Dynamic'])
+            port_dist = port_ranges.value_counts()
+            fig_ports = px.bar(
+                x=port_dist.index,
+                y=port_dist.values,
+                title='Port Range Distribution'
+            )
+            st.plotly_chart(fig_ports)
+    
     elif analysis_type == "Anomaly Detection":
-        st.subheader("Network Anomaly Detection")
+        st.header("Anomaly Detection")
         
-        # Prepare features for anomaly detection
-        features = data[['bytes_sent', 'bytes_received', 'packets', 'duration_ms']]
-        scaled_features = security_app.scaler.fit_transform(features)
-        
-        # Detect anomalies
-        anomalies = security_app.anomaly_detector.fit_predict(scaled_features)
+        # Perform anomaly detection
+        anomalies = detect_anomalies(data)
         data['anomaly'] = anomalies
         
-        # Visualize anomalies
+        # Metrics
+        col1, col2 = st.columns(2)
+        with col1:
+            anomaly_count = len(data[data['anomaly'] == -1])
+            st.metric("Anomalies Detected", 
+                     anomaly_count,
+                     f"{(anomaly_count/len(data))*100:.1f}% of traffic")
+        with col2:
+            st.metric("Normal Traffic Patterns",
+                     len(data[data['anomaly'] == 1]),
+                     "Baseline")
+        
+        # Anomaly Visualization
+        st.subheader("Traffic Anomaly Detection")
         fig_anomaly = px.scatter(
             data,
             x='bytes_sent',
             y='bytes_received',
             color='anomaly',
-            title='Network Traffic Anomalies',
-            color_discrete_map={1: 'blue', -1: 'red'},
-            labels={'anomaly': 'Status', 1: 'Normal', -1: 'Anomaly'}
+            title='Network Traffic Patterns',
+            labels={'anomaly': 'Status'},
+            color_discrete_map={1: 'blue', -1: 'red'}
         )
         st.plotly_chart(fig_anomaly, use_container_width=True)
         
-        # Anomaly Statistics
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(
-                "Total Anomalies Detected",
-                len(data[data['anomaly'] == -1]),
-                f"{len(data[data['anomaly'] == -1])/len(data)*100:.1f}% of traffic"
+        # Show anomalous traffic
+        if st.checkbox("Show Anomalous Traffic Details"):
+            st.dataframe(
+                data[data['anomaly'] == -1][['timestamp', 'bytes_sent', 
+                                           'bytes_received', 'protocol', 'port']],
+                hide_index=True
             )
-        with col2:
-            st.metric(
-                "Normal Traffic Patterns",
-                len(data[data['anomaly'] == 1]),
-                f"{len(data[data['anomaly'] == 1])/len(data)*100:.1f}% of traffic"
-            )
-            
-    elif analysis_type == "Traffic Classification":
-        st.subheader("Traffic Pattern Classification")
-        
-        # Simple traffic classification based on volume
-        data['traffic_class'] = pd.qcut(
-            data['bytes_sent'] + data['bytes_received'],
-            q=3,
-            labels=['Low', 'Medium', 'High']
-        )
-        
-        # Traffic classification visualization
-        fig_class = px.scatter(
-            data,
-            x='bytes_sent',
-            y='bytes_received',
-            color='traffic_class',
-            title='Traffic Classification'
-        )
-        st.plotly_chart(fig_class, use_container_width=True)
-        
-        # Traffic class distribution
-        class_dist = data['traffic_class'].value_counts()
-        fig_dist = px.bar(
-            x=class_dist.index,
-            y=class_dist.values,
-            title='Traffic Class Distribution',
-            labels={'x': 'Traffic Class', 'y': 'Count'}
-        )
-        st.plotly_chart(fig_dist, use_container_width=True)
     
-    # Footer
-    st.markdown("---")
-    st.markdown("### System Status")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("System Status", "Online", "Active")
-    with col2:
-        st.metric("ML Models Loaded", "3/3", "100%")
-    with col3:
-        st.metric("Last Update", "Just now", "Real-time")
+    else:  # Security Metrics
+        st.header("Security Metrics")
+        
+        # Calculate metrics
+        total_traffic = data['bytes_sent'].sum() + data['bytes_received'].sum()
+        avg_packet_size = total_traffic / data['packets'].sum()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Average Packet Size", 
+                     f"{avg_packet_size:.2f} bytes",
+                     "Normal")
+        with col2:
+            st.metric("Traffic Symmetry",
+                     f"{(data['bytes_sent'].sum() / data['bytes_received'].sum()):.2f}",
+                     "Balanced")
+        with col3:
+            st.metric("Unique Ports",
+                     f"{data['port'].nunique():,}",
+                     "Monitored")
+        
+        # Traffic pattern over time
+        st.subheader("Traffic Pattern Analysis")
+        hourly_traffic = data.resample('H', on='timestamp').sum()
+        fig_hourly = px.line(
+            hourly_traffic,
+            y=['bytes_sent', 'bytes_received'],
+            title='Hourly Traffic Pattern'
+        )
+        st.plotly_chart(fig_hourly, use_container_width=True)
 
 if __name__ == "__main__":
     main()
