@@ -14,7 +14,7 @@ CyberGuard is a network security ML dashboard that identifies anomalies, securit
 
 # Sidebar Options
 st.sidebar.header("⚙️ Dashboard Options")
-page = st.sidebar.radio("Select a Section", ["📊 Data Overview", "🧪 Anomaly Detection", "🚨 Security Alerts", "📈 Visualizations"])
+page = st.sidebar.radio("Select a Section", ["📊 Data Overview", "🧪 Anomaly Detection", "🚨 Security Alerts", "🔍 Malware Type Dashboard", "📈 Visualizations"])
 
 # Sample Data Creation with Enhanced Columns
 def create_sample_data():
@@ -43,6 +43,10 @@ def detect_anomalies(data):
     detector = IsolationForest(contamination=0.1, random_state=42)
     data['Anomaly'] = detector.fit_predict(scaled_features)
     data['Alert'] = data['Anomaly'].apply(lambda x: '🚨 Yes' if x == -1 else '✅ No')
+    
+    # Confidence score
+    data['Confidence_Score'] = np.random.uniform(70, 99, data.shape[0])  # Simulating confidence scores between 70-99%
+    
     return data
 
 # Load Sample Data with Enhanced Details
@@ -55,6 +59,14 @@ st.markdown(
     .dataframe {
         margin-left: auto;
         margin-right: auto;
+    }
+    .card {
+        background-color: #f9f9f9;
+        padding: 10px;
+        margin: 5px;
+        border-radius: 5px;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        text-align: center;
     }
     </style>
     """,
@@ -109,9 +121,30 @@ elif page == "🚨 Security Alerts":
     else:
         st.success("✅ No anomalies detected in the sample data.")
 
+# Malware Type Dashboard
+elif page == "🔍 Malware Type Dashboard":
+    st.subheader("4. Malware Type Dashboard")
+    data_with_anomalies = detect_anomalies(sample_data)
+    
+    malware_summary = data_with_anomalies[data_with_anomalies['malware_type'].notna()]
+
+    # Display Cards for details
+    for _, row in malware_summary.iterrows():
+        st.markdown(
+            f"""
+            <div class="card">
+                <h3>🚨 {row['malware_type']} Detected</h3>
+                <p>Source IP: {row['source_ip']}</p>
+                <p>Destination IP: {row['destination_ip']}</p>
+                <p>Risk Level: {row['risk_level']}</p>
+                <p>Confidence Score: {row['Confidence_Score']:.2f}%</p>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    
 # Visualization Section
 elif page == "📈 Visualizations":
-    st.subheader("4. Network Traffic Visualizations")
+    st.subheader("5. Network Traffic Visualizations")
     st.markdown("📊 Visualize data trends to gain insights into network traffic patterns.")
     
     data_with_anomalies = detect_anomalies(sample_data)
@@ -132,7 +165,7 @@ elif page == "📈 Visualizations":
     
     st.altair_chart(chart, use_container_width=True)
 
-    # Packets Distribution
+    # Packets Distribution (Binned)
     st.write("### 📦 Packets Distribution:")
     packets_chart = alt.Chart(data_with_anomalies).mark_bar().encode(
         x=alt.X('packets', bin=alt.Bin(maxbins=30)),
@@ -145,3 +178,15 @@ elif page == "📈 Visualizations":
     )
     
     st.altair_chart(packets_chart, use_container_width=True)
+    
+    # Malware Type Distribution
+    st.write("### 🦠 Malware Type Distribution:")
+    malware_chart = alt.Chart(data_with_anomalies[data_with_anomalies['malware_type'].notna()]).mark_bar().encode(
+        x='malware_type',
+        y='count()',
+        color='malware_type'
+    ).properties(
+        title='Distribution of Malware Types in Anomalies'
+    )
+    
+    st.altair_chart(malware_chart, use_container_width=True)
