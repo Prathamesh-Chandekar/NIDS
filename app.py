@@ -7,9 +7,9 @@ import altair as alt
 from datetime import datetime, timedelta
 
 # Title and Description with Emojis
-st.title("🛡️ CyberGuard - Enhanced Network Security ML Dashboard")
+st.title("🛡️ CyberGuard - Network Security ML Dashboard")
 st.markdown("""
-CyberGuard is a network security ML dashboard that identifies anomalies, security alerts, and potential threats in network data. This updated version includes threat types, timestamps, and risk levels for each alert.
+CyberGuard helps identify anomalies, security alerts, and potential malware threats in network data. This enhanced version includes filtering, dark mode compatibility, and a redesigned layout for alert cards.
 """)
 
 # Sidebar Options
@@ -49,10 +49,10 @@ def detect_anomalies(data):
     
     return data
 
-# Load Sample Data with Enhanced Details
+# Load Sample Data
 sample_data = create_sample_data()
 
-# Center-align tables using CSS
+# CSS for Dark Mode Compatibility and Horizontal Card Layout
 st.markdown(
     """
     <style>
@@ -61,12 +61,22 @@ st.markdown(
         margin-right: auto;
     }
     .card {
-        background-color: #f9f9f9;
+        display: flex;
+        flex-direction: row;
+        background-color: #1e1e1e;
+        color: #f5f5f5;
         padding: 10px;
         margin: 5px;
         border-radius: 5px;
-        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-        text-align: center;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        align-items: center;
+    }
+    .icon {
+        font-size: 1.5rem;
+        margin-right: 15px;
+    }
+    .details {
+        text-align: left;
     }
     </style>
     """,
@@ -126,22 +136,32 @@ elif page == "🔍 Malware Type Dashboard":
     st.subheader("4. Malware Type Dashboard")
     data_with_anomalies = detect_anomalies(sample_data)
     
-    malware_summary = data_with_anomalies[data_with_anomalies['malware_type'].notna()]
+    # Filter options
+    malware_type_filter = st.selectbox("Filter by Malware Type", options=["All"] + list(data_with_anomalies['malware_type'].dropna().unique()))
+    risk_level_filter = st.selectbox("Filter by Risk Level", options=["All", "Low", "Medium", "High"])
 
+    filtered_data = data_with_anomalies.copy()
+    if malware_type_filter != "All":
+        filtered_data = filtered_data[filtered_data['malware_type'] == malware_type_filter]
+    if risk_level_filter != "All":
+        filtered_data = filtered_data[filtered_data['risk_level'] == risk_level_filter]
+    
     # Display Cards for details
-    for _, row in malware_summary.iterrows():
+    for _, row in filtered_data[filtered_data['malware_type'].notna()].iterrows():
         st.markdown(
             f"""
             <div class="card">
-                <h3>🚨 {row['malware_type']} Detected</h3>
-                <p>Source IP: {row['source_ip']}</p>
-                <p>Destination IP: {row['destination_ip']}</p>
-                <p>Risk Level: {row['risk_level']}</p>
-                <p>Confidence Score: {row['Confidence_Score']:.2f}%</p>
+                <div class="icon">🚨</div>
+                <div class="details">
+                    <strong>{row['malware_type']} Detected</strong><br>
+                    <small>Source IP: {row['source_ip']} | Dest IP: {row['destination_ip']}</small><br>
+                    <small>Risk Level: {row['risk_level']}</small><br>
+                    <small>Confidence Score: {row['Confidence_Score']:.2f}%</small>
+                </div>
             </div>
             """, unsafe_allow_html=True
         )
-    
+
 # Visualization Section
 elif page == "📈 Visualizations":
     st.subheader("5. Network Traffic Visualizations")
@@ -184,9 +204,5 @@ elif page == "📈 Visualizations":
     malware_chart = alt.Chart(data_with_anomalies[data_with_anomalies['malware_type'].notna()]).mark_bar().encode(
         x='malware_type',
         y='count()',
-        color='malware_type'
-    ).properties(
-        title='Distribution of Malware Types in Anomalies'
-    )
-    
+        color='malware_type' )
     st.altair_chart(malware_chart, use_container_width=True)
