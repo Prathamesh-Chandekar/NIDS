@@ -13,6 +13,15 @@ def detect_anomalies(data):
     anomalies = detector.fit_predict(scaled_features)
     return anomalies
 
+# Sample data creation function
+def create_sample_data():
+    data = {
+        'bytes_sent': [100, 150, 80, 200, 300, 250, 180, 75, 400, 500],
+        'bytes_received': [90, 140, 70, 190, 310, 240, 170, 65, 390, 490],
+        'packets': [10, 15, 8, 20, 30, 25, 18, 7, 40, 50]
+    }
+    return pd.DataFrame(data)
+
 # Streamlit app starts here
 st.title("ML Features Analysis")
 
@@ -42,11 +51,17 @@ def detect_anomalies(data):
     ''', language='python')
 
     uploaded_file = st.file_uploader("Upload CSV for Anomaly Detection", type=["csv"])
-    
+    sample_data = create_sample_data()
+
     if uploaded_file:
         data = pd.read_csv(uploaded_file)
-        st.write("Data Preview:", data.head())
-        
+        st.write("Uploaded Data Preview:", data.head())
+    else:
+        st.write("Sample Data Preview:")
+        st.write(sample_data)
+        data = sample_data
+
+    if st.button("Run Anomaly Detection"):
         try:
             anomalies = detect_anomalies(data)
             data['Anomaly'] = anomalies
@@ -55,6 +70,13 @@ def detect_anomalies(data):
         except Exception as e:
             st.error(f"Error in detecting anomalies: {e}")
     
+    st.download_button(
+        label="Download Sample CSV",
+        data=sample_data.to_csv(index=False),
+        file_name="sample_data.csv",
+        mime="text/csv"
+    )
+
     st.subheader("2. Feature Engineering")
     st.markdown("""
     - Basic feature scaling using StandardScaler
