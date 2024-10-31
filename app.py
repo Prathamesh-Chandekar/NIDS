@@ -4,28 +4,37 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 import altair as alt
+from datetime import datetime, timedelta
 
 # Title and Description with Emojis
-st.title("🛡️ CyberGuard - Network Security ML Dashboard")
+st.title("🛡️ CyberGuard - Enhanced Network Security ML Dashboard")
 st.markdown("""
-CyberGuard is a network security ML dashboard designed to help identify anomalies and security alerts in network data. 
-Upload your network data to detect unusual patterns and stay on top of potential security threats.
+CyberGuard is a network security ML dashboard that identifies anomalies, security alerts, and potential threats in network data. This updated version includes threat types, timestamps, and risk levels for each alert.
 """)
 
-# Sidebar with Options
+# Sidebar Options
 st.sidebar.header("⚙️ Dashboard Options")
 page = st.sidebar.radio("Select a Section", ["📊 Data Overview", "🧪 Anomaly Detection", "🚨 Security Alerts", "📈 Visualizations"])
 
-# Sample Data Function
+# Sample Data Creation with Enhanced Columns
 def create_sample_data():
+    malware_types = [None, "Trojan", "Spyware", "Ransomware", "Phishing"]
+    risk_levels = ["Low", "Medium", "High"]
+    timestamps = [datetime.now() - timedelta(minutes=i*10) for i in range(100)]
+    
     data = {
+        'timestamp': np.random.choice(timestamps, size=100),
         'bytes_sent': np.random.randint(50, 1000, size=100),
         'bytes_received': np.random.randint(50, 1000, size=100),
-        'packets': np.random.randint(1, 100, size=100)
+        'packets': np.random.randint(1, 100, size=100),
+        'source_ip': np.random.choice(["192.168.0.1", "192.168.0.2", "10.0.0.1"], size=100),
+        'destination_ip': np.random.choice(["192.168.0.10", "10.0.0.5", "172.16.0.1"], size=100),
+        'malware_type': np.random.choice(malware_types, size=100, p=[0.85, 0.05, 0.05, 0.03, 0.02]),
+        'risk_level': np.random.choice(risk_levels, size=100, p=[0.6, 0.3, 0.1])
     }
     return pd.DataFrame(data)
 
-# Anomaly Detection Function
+# Anomaly Detection with Enhanced Data
 def detect_anomalies(data):
     features = data[['bytes_sent', 'bytes_received', 'packets']]
     scaler = StandardScaler()
@@ -36,7 +45,7 @@ def detect_anomalies(data):
     data['Alert'] = data['Anomaly'].apply(lambda x: '🚨 Yes' if x == -1 else '✅ No')
     return data
 
-# Load Sample Data
+# Load Sample Data with Enhanced Details
 sample_data = create_sample_data()
 
 # Center-align tables using CSS
@@ -80,7 +89,6 @@ elif page == "🧪 Anomaly Detection":
         st.write("### 🕵️ Data with Anomalies Flagged:")
         st.write(data_with_anomalies.style.set_properties(**{'text-align': 'center'}))
         
-        # Option to download the flagged data
         st.download_button(
             label="💾 Download Flagged Data",
             data=data_with_anomalies.to_csv(index=False),
@@ -97,7 +105,7 @@ elif page == "🚨 Security Alerts":
     
     if not alerts.empty:
         st.write("### ⚠️ Anomalies Detected - Potential Security Alerts:")
-        st.write(alerts.style.set_properties(**{'text-align': 'center'}))
+        st.write(alerts[['timestamp', 'source_ip', 'destination_ip', 'bytes_sent', 'bytes_received', 'packets', 'malware_type', 'risk_level', 'Alert']].style.set_properties(**{'text-align': 'center'}))
     else:
         st.success("✅ No anomalies detected in the sample data.")
 
@@ -117,7 +125,7 @@ elif page == "📈 Visualizations":
             alt.value('red'),  # Anomalies
             alt.value('blue')  # Normal
         ),
-        tooltip=['bytes_sent', 'bytes_received', 'packets', 'Alert']
+        tooltip=['bytes_sent', 'bytes_received', 'packets', 'Alert', 'malware_type', 'risk_level', 'timestamp']
     ).properties(
         title='Network Traffic: Bytes Sent vs. Bytes Received'
     )
